@@ -1,0 +1,204 @@
+
+<!DOCTYPE html>
+<html lang="ar" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تحليل لعبة Aviator</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      direction: rtl;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 10px;
+      background: #f0f8ff;
+      color: #333;
+    }
+    h1, h2 {
+      color: #004080;
+      text-align: center;
+    }
+    textarea {
+      width: 100%;
+      height: 120px;
+      font-size: 1rem;
+      padding: 10px;
+      box-sizing: border-box;
+      border-radius: 5px;
+      border: 1px solid #aaa;
+      resize: vertical;
+    }
+    button {
+      background-color: #007acc;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      margin-top: 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      width: 100%;
+    }
+    button:hover {
+      background-color: #005f99;
+    }
+    .result {
+      margin-top: 20px;
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    canvas {
+      margin-top: 20px;
+      max-width: 100%;
+    }
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+      font-size: 1.1rem;
+    }
+    input[type=number] {
+      width: 100%;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 5px;
+      border: 1px solid #aaa;
+      box-sizing: border-box;
+      margin-top: 5px;
+    }
+    footer {
+      margin-top: 40px;
+      font-size: 0.9rem;
+      text-align: center;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>تحليل لعبة Aviator</h1>
+
+  <label for="inputData">أدخل مضاعفات الجولات السابقة مفصولة بفواصل:</label>
+  <textarea id="inputData" placeholder="مثال: 1.0,1.5,2.0,1.2,3.5,1.0"></textarea>
+
+  <label for="thresholdInput">حدد مضاعف العتبة لحساب الاحتمالية:</label>
+  <input type="number" id="thresholdInput" min="1" max="20" step="0.1" value="2.0" />
+
+  <button onclick="analyzeData()">حلل البيانات</button>
+
+  <div id="results" class="result" style="display:none;">
+    <h2>نتائج التحليل</h2>
+    <p id="count"></p>
+    <p id="average"></p>
+    <p id="max"></p>
+    <p id="min"></p>
+    <p id="probability"></p>
+    <h3 id="recommendation"></h3>
+    <canvas id="histogram" width="500" height="300"></canvas>
+  </div>
+
+  <footer>
+    تم تطوير هذا التطبيق لمساعدتك في تحليل لعبة Aviator بشكل بسيط وفعال.
+  </footer>
+
+  <script>
+    function analyzeData() {
+      const input = document.getElementById('inputData').value.trim();
+      if (!input) {
+        alert('يرجى إدخال بيانات المضاعفات.');
+        return;
+      }
+      const threshold = parseFloat(document.getElementById('thresholdInput').value);
+      if (isNaN(threshold) || threshold < 1) {
+        alert('يرجى إدخال قيمة عتبة صحيحة.');
+        return;
+      }
+      const parts = input.split(',');
+      const numbers = [];
+      for (let p of parts) {
+        const n = parseFloat(p.trim());
+        if (isNaN(n)) {
+          alert('تأكد من أن جميع القيم أرقام صحيحة ومفصولة بفواصل.');
+          return;
+        }
+        numbers.push(n);
+      }
+      if (numbers.length === 0) {
+        alert('لم يتم إدخال بيانات صحيحة.');
+        return;
+      }
+
+      // حسابات
+      const count = numbers.length;
+      const sum = numbers.reduce((a,b) => a+b, 0);
+      const average = sum / count;
+      const max = Math.max(...numbers);
+      const min = Math.min(...numbers);
+      const aboveThresholdCount = numbers.filter(x => x > threshold).length;
+      const probability = aboveThresholdCount / count;
+
+      // عرض النتائج
+      document.getElementById('count').innerText = `عدد الجولات: ${count}`;
+      document.getElementById('average').innerText = `المتوسط: ${average.toFixed(2)}`;
+      document.getElementById('max').innerText = `الأعلى: ${max}`;
+      document.getElementById('min').innerText = `الأدنى: ${min}`;
+      document.getElementById('probability').innerText = `احتمالية ظهور مضاعف أكبر من ${threshold}: ${(probability*100).toFixed(2)}%`;
+      document.getElementById('recommendation').innerText = `توصية: اسحب عند مضاعف تقريبًا ${average.toFixed(2)} أو حسب استراتيجيتك`;
+
+      // رسم الهستوجرام
+      drawHistogram(numbers, average);
+
+      document.getElementById('results').style.display = 'block';
+    }
+
+    function drawHistogram(data, average) {
+      const canvas = document.getElementById('histogram');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // إعدادات الرسم
+      const binsCount = 20;
+      const maxVal = Math.max(...data);
+      const minVal = Math.min(...data);
+      const binSize = (maxVal - minVal) / binsCount;
+
+      // حساب التكرارات
+      const bins = new Array(binsCount).fill(0);
+      data.forEach(value => {
+        let index = Math.floor((value - minVal) / binSize);
+        if (index === binsCount) index = binsCount - 1;
+        bins[index]++;
+      });
+
+      const maxBin = Math.max(...bins);
+
+      // رسم الأعمدة
+      const width = canvas.width;
+      const height = canvas.height;
+      const barWidth = width / binsCount;
+
+      ctx.fillStyle = '#007acc';
+      for (let i = 0; i < binsCount; i++) {
+        const barHeight = (bins[i] / maxBin) * (height - 40);
+        ctx.fillRect(i * barWidth, height - barHeight, barWidth - 2, barHeight);
+      }
+
+      // رسم خط المتوسط
+      ctx.strokeStyle = 'red';
+      ctx.lineWidth = 2;
+      const avgX = ((average - minVal) / (maxVal - minVal)) * width;
+      ctx.beginPath();
+      ctx.moveTo(avgX, 0);
+      ctx.lineTo(avgX, height);
+      ctx.stroke();
+
+      ctx.fillStyle = 'red';
+      ctx.font = '14px Arial';
+      ctx.fillText('متوسط', avgX + 5, 20);
+    }
+  </script>
+</body>
+</html>
